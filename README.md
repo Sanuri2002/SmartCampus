@@ -72,93 +72,91 @@ API Endpoints
 
 Sample curl Commands
 
-### 1. Get API Discovery
+1. Get API Discovery
 curl -X GET http://localhost:8080/
 
-### 2. Get all rooms
+2. Get all rooms
 curl -X GET http://localhost:8080/rooms
 
-### 3. Create a new room
+3. Create a new room
 curl -X POST http://localhost:8080/rooms -H "Content-Type: application/json" -d "{\"id\":\"CS-101\",\"name\":\"Computer Science Lab\",\"capacity\":40}"
 
-### 4. Create a new sensor
+4. Create a new sensor
 curl -X POST http://localhost:8080/sensors -H "Content-Type: application/json" -d "{\"id\":\"TEMP-002\",\"type\":\"Temperature\",\"status\":\"ACTIVE\",\"currentValue\":25.0,\"roomId\":\"LAB-101\"}"
 
-### 5. Add a sensor reading
+5. Add a sensor reading
 curl -X POST http://localhost:8080/sensors/TEMP-001/readings -H "Content-Type: application/json" -d "{\"value\":26.5}"
 
-### 6. Filter sensors by type
+6. Filter sensors by type
 curl -X GET http://localhost:8080/sensors?type=CO2
 
-### 7. Delete a room
+7. Delete a room
 curl -X DELETE http://localhost:8080/rooms/CS-101
 
-## Report Questions and Answers
+Report Questions and Answers
 
 Part 1 - Q1: JAX-RS Resource Class Lifecycle
-By default, JAX-RS creates a new instance of each resource class for every incoming
-HTTP request. This is called per-request lifecycle. This means instance variables
-are not shared between requests, which could cause data loss if we stored data in
-instance variables. To solve this, we use a Singleton DataStore class with
-ConcurrentHashMap, which is shared across all instances. ConcurrentHashMap ensures
-thread safety, preventing race conditions when multiple requests modify data simultaneously.
+By default, JAX-RS instantiates one object of each resource class for each HTTP
+request that comes into the application. This is known as per-request lifecycle,
+which means that there is no persistence of data between invocations since any
+data that is persisted would get lost on the next invocation of that method.
+However, to avoid such an issue, we can utilize a singleton class called DataStore
+that uses ConcurrentHashMap.
 
 Part 1 - Q2: HATEOAS
-HATEOAS (Hypermedia as the Engine of Application State) means including navigation
-links inside API responses. For example, when returning a room, you also return links
-to its sensors. This benefits client developers because they do not need to memorise
-or hardcode URLs - they can discover them dynamically from responses, making the API
-self-documenting and reducing coupling between client and server.
+“HATEOAS,” which stands for “Hypermedia as the Engine of Application State,”
+involves embedding the navigation links within the API’s response messages. 
+For instance, if an API returns a room, it will include links pointing to the 
+sensors associated with that particular room. This is helpful for client developers 
+since they don’t have to remember or hard-code any URLs.
 
 Part 2 - Q1: Returning IDs vs Full Objects
-Returning only IDs uses less network bandwidth and is faster, but forces the client
-to make additional requests to fetch details for each room. Returning full objects
-uses more bandwidth but reduces the number of API calls needed. For small collections
-like campus rooms, returning full objects is preferable as it reduces round trips and
-simplifies client-side processing.
+It is faster to return IDs as it requires less bandwidth, but additional requests 
+have to be made by the client for each of the rooms. It consumes more bandwidth but
+fewer calls have to be made for large objects. Since our collection is relatively
+smaller such as the rooms on campus,returning objects would be a better approach.
 
 Part 2 - Q2: DELETE Idempotency
-Yes, DELETE is idempotent in this implementation. The first DELETE request removes
-the room and returns 200 OK. Any subsequent DELETE requests for the same room ID
-will return 404 Not Found because the room no longer exists. The server state remains
-the same after the first successful deletion, satisfying the idempotency requirement.
+Yes, DELETE operation is an idempotent method here. On receiving the first request,
+the room will be deleted and the response status will be 200 OK. In case the same
+DELETE request is sent again, it will result in a 404 Not Found error because the room
+is no longer available.
 
 Part 3 - Q1: @Consumes Annotation
-If a client sends data in a format other than application/json, such as text/plain
-or application/xml, JAX-RS automatically returns a 415 Unsupported Media Type error.
-The framework checks the Content-Type header of the request against the @Consumes
-annotation before even invoking the method. This protects the API from receiving
-malformed or unexpected data formats.
+In the event that the content type provided by the user is something other than
+application/json such as application/xml or text/plain, then the framework responds
+with a 415 error, "Unsupported Media Type". The framework verifies the content type
+specified in the content-type header against the @Consumes annotation before even
+calling the method.
 
 Part 3 - Q2: @QueryParam vs Path Parameter
-Using @QueryParam for filtering such as /sensors?type=CO2 is superior because query
-parameters are optional by nature, so the same endpoint works for both filtered and
-unfiltered requests. Path parameters such as /sensors/type/CO2 suggest a fixed
-resource hierarchy, which is semantically incorrect for filtering. Query parameters
-are the REST standard for search and filter operations on collections.
+The use of @QueryParam when it comes to filtering using a URL like /sensors?type=CO2 
+is more appropriate because query parameters are optional. This means that an endpoint 
+can either have filtered information or unfiltered one depending on the inclusion of the 
+query parameter. A URL like /sensors/type/CO2 implies that there’s a certain hierarchical 
+structure, but this doesn’t make sense in the case of filters.
 
 Part 4 - Q1: Sub-Resource Locator Pattern
-The Sub-Resource Locator pattern delegates handling of nested paths to separate
-classes. Instead of defining all endpoints in one massive class, each resource
-manages its own logic. This improves maintainability, separation of concerns, and
-testability. For large APIs with many nested resources, this pattern prevents
-resource classes from becoming unmanageable and makes the codebase easier to navigate.
+The Sub-Resource Locator pattern relies on different classes for resolving the
+nested URL paths. Rather than declaring all the endpoints in one huge class,
+the resources have their own logic declared in them. This helps in better
+management, separation of responsibilities, and testability of the API. When
+dealing with nested URLs, this design pattern makes sure that resources do not
+become unmanageable.
 
 Part 5 - Q1: HTTP 422 vs 404
-HTTP 404 means the requested URL or resource was not found. HTTP 422 means the
-request was syntactically correct but semantically invalid. When a client sends a
-valid JSON payload containing a roomId that does not exist, the URL is valid and
-the JSON is well-formed, but the referenced resource is missing. Therefore 422 is
-more accurate as it points to a data integrity issue inside the payload rather than
-a missing endpoint.
+An HTTP 404 indicates that the resource or URL could not be located. An HTTP 422
+indicates that the request was correct in syntax but incorrect in semantics.
+When a client passes in a valid JSON body with a non-existent roomId, it can
+be considered that the URL is present, and the JSON body is also valid; however,
+it references an object that cannot be located.
 
 Part 5 - Q2: Stack Trace Security Risk
-Exposing Java stack traces to external clients reveals sensitive internal information
-such as class names and package structure which helps attackers map the codebase,
-library versions which helps identify known vulnerabilities, file paths on the server,
-and the exact line of code that failed which helps craft targeted attacks. The
-GlobalExceptionMapper prevents this by catching all unexpected errors and returning
-only a generic 500 message with no internal details.
+By revealing stack trace details to outside clients, internal information such as
+class names, the package structure that will help hackers understand your code base,
+the library version that may lead to vulnerabilities and file path of the server can
+be revealed. GlobalExceptionMapper solves the problem by intercepting any errors that
+occur and only giving the 500 error message back
 
 Part 5 - Q3: JAX-RS Filters vs Manual Logging
 Using JAX-RS filters for cross-cutting concerns like logging is better because it
